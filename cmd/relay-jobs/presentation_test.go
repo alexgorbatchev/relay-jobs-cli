@@ -71,7 +71,8 @@ func TestHelpWidthAndFailedWrites(t *testing.T) {
 				if mode == "0" {
 					width := humanHelpWidth()
 					for _, line := range strings.Split(out, "\n") {
-						if runewidth.StringWidth(line) > width {
+						// A word wider than the terminal stays whole on its own line.
+						if runewidth.StringWidth(line) > width && len(strings.Fields(strings.Trim(line, " │├╰─"))) > 1 {
 							t.Errorf("width %d exceeded by %q", width, line)
 						}
 					}

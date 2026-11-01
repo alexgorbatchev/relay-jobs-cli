@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	cobrahelptree "github.com/alexgorbatchev/cobra-help-tree/v3"
+	cobrahelptree "github.com/alexgorbatchev/cobra-help-tree/v4"
 	"github.com/spf13/cobra"
 )
 
@@ -68,7 +68,7 @@ func setupHelp(cmd *cobra.Command) {
 	}
 }
 
-// humanHelpWidth is the width human help is clipped to. Redirected output has no
+// humanHelpWidth is the width human help wraps to. Redirected output has no
 // terminal to measure, so it falls back to 80 columns instead of growing unbounded.
 func humanHelpWidth() int {
 	if width := cobrahelptree.GetTerminalWidth(); width > 0 {

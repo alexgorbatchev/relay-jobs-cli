@@ -35,7 +35,7 @@ Generic Linux/macOS batch runner. Executable: `relay-jobs`.
 
 ## CLI and documentation
 
-- Use Cobra with `github.com/alexgorbatchev/cobra-help-tree/v3`, positional-argument metadata, human help wrapped to the terminal width (80-column fallback) and never truncated, compact agent help, and raw `--version` output.
+- Use Cobra with `github.com/alexgorbatchev/cobra-help-tree/v4`, positional-argument metadata, human help wrapped to the terminal width (80-column fallback) and never truncated, compact agent help, and raw `--version` output.
 - Canonical usage skill: `skills/relay-jobs/SKILL.md`. `HelpOptions.Skill` (`skillSource` in `cmd/relay-jobs/help.go`) makes cobra-help-tree add the `skill` command, which prints the GitHub installation command and URL identically in both modes, offline, and opens every agent help screen with the skill alert; cobra-help-tree detects agent mode for help screens itself. Do not hand-roll the skill command or alert. Never embed or duplicate the skill.
 - Update the usage skill in the same change as any command, argument, flag, default, environment variable, TOML field, output, or side-effect change; `cobrahelptree.SkillOmissions` tests fail on undocumented commands, flags, types, and defaults. Update README, examples and tests in the same change too, and update documentation timestamps.
 - Help states effective defaults. Fixed-role commands register their role's `job.DefaultPaths`; runtime-resolved values (`--socket`, `service install` paths) register empty defaults and describe the resolution in usage, including the TOML key that supplies it. Declare every environment variable the CLI reads in `techCatalog` `Env`; tests compare help with `configure` and scan sources for reads.

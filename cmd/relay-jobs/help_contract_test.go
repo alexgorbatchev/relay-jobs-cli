@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	cobrahelptree "github.com/alexgorbatchev/cobra-help-tree/v3"
+	cobrahelptree "github.com/alexgorbatchev/cobra-help-tree/v4"
 	"github.com/alexgorbatchev/relay-jobs-cli/internal/display"
 	"github.com/alexgorbatchev/relay-jobs-cli/internal/job"
 )
