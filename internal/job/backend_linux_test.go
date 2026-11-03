@@ -8,9 +8,13 @@ import (
 	"testing"
 )
 
+func nativeManagerError() error {
+	return exec.Command("systemctl", "--user", "show-environment").Run()
+}
+
 func nativeManager(t *testing.T) {
 	t.Helper()
-	if err := exec.Command("systemctl", "--user", "show-environment").Run(); err != nil {
+	if nativeErr != nil {
 		t.Skip("integration requires the Linux user systemd manager")
 	}
 }

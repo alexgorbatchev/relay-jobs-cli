@@ -55,7 +55,7 @@ func TestRetentionAutomaticServices(t *testing.T) {
 			w := worker(t, 1)
 			w.Retention = Retention{Logs: time.Hour, Workspaces: time.Hour, Interval: 10 * time.Millisecond}
 			old := retainedJob(t, w, stateSucceeded, 2*time.Hour)
-			c := NewCoordinator(Paths{State: t.TempDir()}, Config{}, testBinary)
+			c := newTestCoordinator(t, Paths{State: t.TempDir()}, Config{}, testBinary)
 			defer c.Close()
 			c.Retention = w.Retention
 			store := w.Store
@@ -132,7 +132,7 @@ func TestRetentionAcknowledgmentRetries(t *testing.T) {
 	if err := WriteJSON(w.Store.Path(r.ID, "record.json"), r); err != nil {
 		t.Fatal(err)
 	}
-	c := NewCoordinator(Paths{State: t.TempDir()}, Config{}, testBinary)
+	c := newTestCoordinator(t, Paths{State: t.TempDir()}, Config{}, testBinary)
 	defer c.Close()
 	r.Worker = "missing"
 	if err := c.Store.Put(r); err != nil {
@@ -184,7 +184,7 @@ func TestRetentionAcknowledgmentFailurePreservesResult(t *testing.T) {
 		}
 		handler.ServeHTTP(out, req)
 	}))
-	c := NewCoordinator(Paths{State: t.TempDir()}, Config{Workers: []WorkerConfig{{Name: "worker", Socket: socket}}}, testBinary)
+	c := newTestCoordinator(t, Paths{State: t.TempDir()}, Config{Workers: []WorkerConfig{{Name: "worker", Socket: socket}}}, testBinary)
 	defer c.Close()
 	r.State, r.Worker, r.Submitted = stateRunning, "worker", true
 	if err := c.Store.Put(r); err != nil {

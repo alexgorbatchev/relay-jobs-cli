@@ -9,7 +9,7 @@ import (
 func TestLocalFallbackQueuesAndCancels(t *testing.T) {
 	nativeManager(t)
 	ctx := context.Background()
-	c := NewCoordinator(Paths{State: t.TempDir()}, Config{Workers: []WorkerConfig{{Name: "offline", Socket: "/missing/relay-jobs.sock"}}}, testBinary)
+	c := newTestCoordinator(t, Paths{State: t.TempDir()}, Config{Workers: []WorkerConfig{{Name: "offline", Socket: "/missing/relay-jobs.sock"}}}, testBinary)
 	defer c.Close()
 	first := request(t, "sleep", "3")
 	first.Spec.Unavailable = "local"

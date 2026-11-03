@@ -78,7 +78,7 @@ func TestUnreadableAndTruncatedLogs(t *testing.T) {
 	if response.Code != 409 {
 		t.Fatal("truncated log appeared successful")
 	}
-	c := NewCoordinator(Paths{State: t.TempDir()}, Config{Workers: []WorkerConfig{{Name: "worker", Socket: endpoint(t, w.Handler())}}}, testBinary)
+	c := newTestCoordinator(t, Paths{State: t.TempDir()}, Config{Workers: []WorkerConfig{{Name: "worker", Socket: endpoint(t, w.Handler())}}}, testBinary)
 	defer c.Close()
 	absent := Record{Request: request(t, "true"), State: "running", Worker: "worker"}
 	if err := c.Store.Put(absent); err != nil {
@@ -87,7 +87,7 @@ func TestUnreadableAndTruncatedLogs(t *testing.T) {
 	if err := c.copyLogs(context.Background(), absent); err == nil {
 		t.Fatal("missing worker log record ignored")
 	}
-	local := NewCoordinator(Paths{State: t.TempDir()}, Config{}, testBinary)
+	local := newTestCoordinator(t, Paths{State: t.TempDir()}, Config{}, testBinary)
 	defer local.Close()
 	absent.Worker = "local"
 	local.Store.Put(absent)

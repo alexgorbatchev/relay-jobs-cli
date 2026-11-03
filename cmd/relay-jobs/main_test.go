@@ -215,10 +215,12 @@ func TestCLIJobWorkflow(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	w := &job.Worker{Store: job.Store{Dir: t.TempDir()}, Cache: t.TempDir(), Binary: integrationBinary, Slots: 2}
+	stopExecutions(t, w)
 	workerSocket := socketServer(t, w.Handler())
 	paths := job.Paths{State: t.TempDir()}
 	config := job.Config{Workers: []job.WorkerConfig{{Name: "test", Socket: workerSocket, Labels: []string{"linux"}}}}
 	coordinator := job.NewCoordinator(paths, config, integrationBinary)
+	stopExecutions(t, coordinator.Local)
 	defer coordinator.Close()
 	socket := socketServer(t, coordinator.Handler(ctx))
 	source := t.TempDir()
@@ -264,6 +266,32 @@ func TestCLIJobWorkflow(t *testing.T) {
 			t.Errorf("unexpected success: %v", args)
 		}
 	}
+}
+
+// stopExecutions cancels a failed test's unfinished jobs and lets Status release
+// finished native units, so they never stay loaded in the user's manager.
+// Registered after the store's temporary directory, it runs before its removal.
+func stopExecutions(t *testing.T, w *job.Worker) {
+	t.Helper()
+	t.Cleanup(func() {
+		records, err := w.Store.List()
+		if err != nil {
+			t.Errorf("list executions for cleanup: %v", err)
+			return
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		for _, r := range records {
+			if !r.Terminal() {
+				if _, err = w.Cancel(ctx, r.ID); err != nil {
+					t.Errorf("cancel %s: %v", r.ID, err)
+				}
+			}
+			if _, err = w.Status(ctx, r.ID); err != nil {
+				t.Errorf("release %s: %v", r.ID, err)
+			}
+		}
+	})
 }
 
 func writeTOML(path string, v any) error {

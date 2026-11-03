@@ -31,7 +31,7 @@ func TestStorageFailuresRemainVisible(t *testing.T) {
 	if _, err := w.Prepare(req); err == nil {
 		t.Fatal("unwritable workspace")
 	}
-	c := NewCoordinator(Paths{State: blocked}, Config{}, testBinary)
+	c := newTestCoordinator(t, Paths{State: blocked}, Config{}, testBinary)
 	defer c.Close()
 	if _, err := c.Submit(ctx, req); err == nil {
 		t.Fatal("submit without durable receipt")
@@ -49,7 +49,7 @@ func TestStorageFailuresRemainVisible(t *testing.T) {
 	if _, err := broken.Prepare(request(t, "true")); err == nil {
 		t.Fatal("corrupt active index")
 	}
-	corruptCoordinator := NewCoordinator(Paths{State: brokenStore.Dir}, Config{}, testBinary)
+	corruptCoordinator := newTestCoordinator(t, Paths{State: brokenStore.Dir}, Config{}, testBinary)
 	defer corruptCoordinator.Close()
 	if _, err := corruptCoordinator.Submit(ctx, req); err == nil {
 		t.Fatal("corrupt submission receipt")
@@ -156,7 +156,7 @@ func TestLogCollectionFairness(t *testing.T) {
 	os.WriteFile(w.Store.Path(req.ID, "stdout"), data, 0600)
 	os.WriteFile(w.Store.Path(req.ID, "stderr"), []byte("stderr gets a turn"), 0600)
 	socket := endpoint(t, w.Handler())
-	c := NewCoordinator(Paths{State: t.TempDir()}, Config{Workers: []WorkerConfig{{Name: "worker", Socket: socket}}}, testBinary)
+	c := newTestCoordinator(t, Paths{State: t.TempDir()}, Config{Workers: []WorkerConfig{{Name: "worker", Socket: socket}}}, testBinary)
 	defer c.Close()
 	rec.Worker = "worker"
 	rec.State = "running"
@@ -178,7 +178,7 @@ func TestLogCollectionFairness(t *testing.T) {
 		t.Fatal("chunked collection corrupted binary data")
 	}
 	// The local fallback collector has the same bounded behavior.
-	local := NewCoordinator(Paths{State: t.TempDir()}, Config{}, testBinary)
+	local := newTestCoordinator(t, Paths{State: t.TempDir()}, Config{}, testBinary)
 	defer local.Close()
 	rec.Worker = "local"
 	local.Local.Store.Put(rec)
@@ -219,7 +219,7 @@ func TestSocketStartupFailures(t *testing.T) {
 	if err := Serve(ctx, tooLong, http.NewServeMux()); err == nil {
 		t.Fatal("oversized socket path")
 	}
-	c := NewCoordinator(Paths{State: filepath.Join(dir, "state")}, Config{}, testBinary)
+	c := newTestCoordinator(t, Paths{State: filepath.Join(dir, "state")}, Config{}, testBinary)
 	defer c.Close()
 	runDir, err := os.MkdirTemp("", "rj-serve-coord-")
 	if err != nil {

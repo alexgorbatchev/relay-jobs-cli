@@ -161,7 +161,7 @@ func TestRetentionCollectionAndRecovery(t *testing.T) {
 	exists(t, w.Store.Path(r.ID, "stdout"), true)
 	config := Config{Workers: []WorkerConfig{{Name: "worker", Socket: endpoint(t, w.Handler())}}}
 	paths := Paths{State: t.TempDir()}
-	c := NewCoordinator(paths, config, testBinary)
+	c := newTestCoordinator(t, paths, config, testBinary)
 	defer c.Close()
 	r.Worker, r.State, r.Submitted = "worker", stateRunning, true
 	r.Created = r.Created.Add(-time.Hour)
@@ -178,7 +178,7 @@ func TestRetentionCollectionAndRecovery(t *testing.T) {
 	}
 	// Rebuild the coordinator from disk while output collection is incomplete.
 	c.Close()
-	c = NewCoordinator(paths, config, testBinary)
+	c = newTestCoordinator(t, paths, config, testBinary)
 	defer c.Close()
 	r, err = c.Store.Get(r.ID)
 	if err != nil {

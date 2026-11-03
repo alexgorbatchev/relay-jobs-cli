@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -20,7 +22,12 @@ import (
 
 var testBinary, testRsync string
 
+// nativeErr records whether the native manager is reachable, checked before
+// tests change PATH or the environment.
+var nativeErr error
+
 func TestMain(m *testing.M) {
+	nativeErr = nativeManagerError()
 	var err error
 	if testRsync, err = exec.LookPath("rsync"); err != nil {
 		panic(err)
@@ -54,7 +61,63 @@ func request(t *testing.T, command ...string) Request {
 }
 func worker(t *testing.T, slots int) *Worker {
 	t.Helper()
-	return &Worker{Store: Store{t.TempDir()}, Cache: t.TempDir(), Binary: testBinary, Rsync: testRsync, Slots: slots}
+	w := &Worker{Store: Store{t.TempDir()}, Cache: t.TempDir(), Binary: testBinary, Rsync: testRsync, Slots: slots}
+	stopExecutions(t, w.Store)
+	return w
+}
+
+// newTestCoordinator also cleans up executions its local fallback worker starts.
+func newTestCoordinator(t *testing.T, paths Paths, c Config, binary string) *Coordinator {
+	t.Helper()
+	coordinator := NewCoordinator(paths, c, binary)
+	stopExecutions(t, coordinator.Local.Store)
+	return coordinator
+}
+
+// stopExecutions stops native units a test left behind. A failed test would
+// otherwise leave supervisors and commands loaded in the user's manager. It
+// walks job directories because some tests corrupt receipts, and queries the
+// manager only for jobs that may own a unit, so tests that never start a job
+// still run without a user manager.
+// Registered after the store's temporary directory, it runs before its removal.
+func stopExecutions(t *testing.T, s Store) {
+	t.Helper()
+	t.Cleanup(func() {
+		if nativeErr != nil {
+			return // Without a manager, no test could have started a unit.
+		}
+		entries, err := os.ReadDir(filepath.Join(s.Dir, "jobs"))
+		if errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR) {
+			return
+		}
+		if err != nil {
+			t.Errorf("list executions for cleanup: %v", err)
+			return
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		for _, e := range entries {
+			if !e.IsDir() || !validID.MatchString(e.Name()) {
+				continue
+			}
+			var err error
+			// Start persists a receipt first; without one or before starting, no unit exists.
+			r, getErr := s.Get(e.Name())
+			if errors.Is(getErr, fs.ErrNotExist) || (getErr == nil && r.State == statePrepared) {
+				continue
+			}
+			if getErr != nil || !r.Terminal() {
+				var active bool
+				if active, err = executionActive(ctx, s, e.Name()); err == nil && active {
+					_, err = stopExecution(ctx, s, e.Name())
+				}
+			}
+			// Finished macOS supervisors stay loaded until released.
+			if err = errors.Join(err, finishExecution(ctx, s, e.Name())); err != nil {
+				t.Errorf("stop execution %s: %v", e.Name(), err)
+			}
+		}
+	})
 }
 func endpoint(t *testing.T, handler http.Handler) string {
 	t.Helper()
@@ -414,7 +477,7 @@ func TestCoordinatorSchedulingAndRecovery(t *testing.T) {
 	as, bs := endpoint(t, a.Handler()), endpoint(t, b.Handler())
 	paths := Paths{State: t.TempDir(), Cache: t.TempDir()}
 	config := Config{Workers: []WorkerConfig{{Name: "a", Socket: as, Labels: []string{"linux"}}, {Name: "b", Socket: bs, Labels: []string{"linux"}}}}
-	c := NewCoordinator(paths, config, testBinary)
+	c := newTestCoordinator(t, paths, config, testBinary)
 	defer c.Close()
 	r := request(t, "sh", "-c", "printf exact; sleep .2")
 	r.Spec.Labels = []string{"linux"}
@@ -443,7 +506,7 @@ func TestCoordinatorSchedulingAndRecovery(t *testing.T) {
 	}
 	wait(t, func() (Record, error) { return c.Store.Get(second.ID) }, "running")
 	c.Close()
-	resumed := NewCoordinator(paths, config, testBinary)
+	resumed := newTestCoordinator(t, paths, config, testBinary)
 	defer resumed.Close()
 	if err = resumed.Start(ctx); err != nil {
 		t.Fatal(err)
@@ -453,7 +516,7 @@ func TestCoordinatorSchedulingAndRecovery(t *testing.T) {
 		t.Fatal(rec)
 	}
 	// Offline strict jobs fail, and incompatible toolchains never trigger local fallback.
-	offline := NewCoordinator(Paths{State: t.TempDir()}, Config{Workers: []WorkerConfig{{Name: "down", Socket: "/missing/relay-jobs.sock"}}}, testBinary)
+	offline := newTestCoordinator(t, Paths{State: t.TempDir()}, Config{Workers: []WorkerConfig{{Name: "down", Socket: "/missing/relay-jobs.sock"}}}, testBinary)
 	defer offline.Close()
 	for _, policy := range []string{"fail", "local"} {
 		req := request(t, "printf", "fallback")

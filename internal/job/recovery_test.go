@@ -34,7 +34,7 @@ func TestLostStartReplyDoesNotReplay(t *testing.T) {
 		handler.ServeHTTP(out, r)
 	}))
 	second := endpoint(t, fallback.Handler())
-	c := NewCoordinator(Paths{State: t.TempDir()}, Config{Workers: []WorkerConfig{{Name: "first", Socket: socket}, {Name: "second", Socket: second}}}, testBinary)
+	c := newTestCoordinator(t, Paths{State: t.TempDir()}, Config{Workers: []WorkerConfig{{Name: "first", Socket: socket}, {Name: "second", Socket: second}}}, testBinary)
 	defer c.Close()
 	req := request(t, "sh", "-c", "printf execution >> count; sleep .1; printf done")
 	req.Spec.Unavailable = "local"
@@ -59,7 +59,7 @@ func TestQueueAndCancellationRecovery(t *testing.T) {
 	ctx := context.Background()
 	w := worker(t, 1)
 	socket := endpoint(t, w.Handler())
-	c := NewCoordinator(Paths{State: t.TempDir()}, Config{Workers: []WorkerConfig{{Name: "worker", Socket: socket}}}, testBinary)
+	c := newTestCoordinator(t, Paths{State: t.TempDir()}, Config{Workers: []WorkerConfig{{Name: "worker", Socket: socket}}}, testBinary)
 	defer c.Close()
 	first := request(t, "sleep", "2")
 	if _, err := c.Submit(ctx, first); err != nil {
@@ -96,7 +96,7 @@ func TestQueueAndCancellationRecovery(t *testing.T) {
 	if err := os.Rename(socket+".offline", socket); err != nil {
 		t.Fatal(err)
 	}
-	resumed := NewCoordinator(Paths{State: c.Store.Dir}, Config{Workers: []WorkerConfig{{Name: "worker", Socket: socket}}}, testBinary)
+	resumed := newTestCoordinator(t, Paths{State: c.Store.Dir}, Config{Workers: []WorkerConfig{{Name: "worker", Socket: socket}}}, testBinary)
 	defer resumed.Close()
 	if err = resumed.Start(ctx); err != nil {
 		t.Fatal(err)
@@ -142,7 +142,7 @@ func TestPreparedRecoveryAndLease(t *testing.T) {
 	}
 	socket := endpoint(t, w.Handler())
 	paths := Paths{State: t.TempDir()}
-	c := NewCoordinator(paths, Config{Workers: []WorkerConfig{{Name: "worker", Socket: socket}}}, testBinary)
+	c := newTestCoordinator(t, paths, Config{Workers: []WorkerConfig{{Name: "worker", Socket: socket}}}, testBinary)
 	defer c.Close()
 	pending := request(t, "true")
 	reserved, err := w.Prepare(pending)
@@ -171,7 +171,7 @@ func TestPreparedRecoveryAndLease(t *testing.T) {
 	ready.State = "starting"
 	ready.Worker = "worker"
 	ready.Submitted = true
-	next := NewCoordinator(Paths{State: t.TempDir()}, Config{Workers: []WorkerConfig{{Name: "worker", Socket: socket}}}, testBinary)
+	next := newTestCoordinator(t, Paths{State: t.TempDir()}, Config{Workers: []WorkerConfig{{Name: "worker", Socket: socket}}}, testBinary)
 	defer next.Close()
 	next.Store.Put(ready)
 	if err = next.Start(ctx); err != nil {
@@ -184,7 +184,7 @@ func TestCoordinatorAPI(t *testing.T) {
 	ctx := context.Background()
 	w := worker(t, 1)
 	workerSocket := endpoint(t, w.Handler())
-	c := NewCoordinator(Paths{State: t.TempDir()}, Config{Workers: []WorkerConfig{{Name: "worker", Socket: workerSocket}}}, testBinary)
+	c := newTestCoordinator(t, Paths{State: t.TempDir()}, Config{Workers: []WorkerConfig{{Name: "worker", Socket: workerSocket}}}, testBinary)
 	defer c.Close()
 	rpc := NewRPC(endpoint(t, c.Handler(ctx)))
 	defer rpc.Close()

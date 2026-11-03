@@ -15,10 +15,14 @@ import (
 	"github.com/alexgorbatchev/relay-jobs-cli/internal/launchd"
 )
 
+func nativeManagerError() error {
+	return exec.Command("/bin/launchctl", "print", launchd.Domain()).Run()
+}
+
 func nativeManager(t *testing.T) {
 	t.Helper()
-	if err := exec.Command("/bin/launchctl", "print", launchd.Domain()).Run(); err != nil {
-		t.Fatalf("native launchd user domain required: %v", err)
+	if nativeErr != nil {
+		t.Fatalf("native launchd user domain required: %v", nativeErr)
 	}
 }
 

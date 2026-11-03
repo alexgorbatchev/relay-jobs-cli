@@ -24,7 +24,7 @@ func TestWorkerListingConcurrentTimeouts(t *testing.T) {
 		<-r.Context().Done()
 	}))
 	fast := endpoint(t, worker(t, 2).Handler())
-	c := NewCoordinator(Paths{State: t.TempDir()}, Config{Workers: []WorkerConfig{
+	c := newTestCoordinator(t, Paths{State: t.TempDir()}, Config{Workers: []WorkerConfig{
 		{Name: "slow-a", Socket: slow}, {Name: "healthy", Socket: fast}, {Name: "slow-b", Socket: slow},
 	}}, testBinary)
 	defer c.Close()
@@ -107,7 +107,7 @@ func TestSchedulingAvailabilityConfiguration(t *testing.T) {
 				}
 			}))
 			config := Config{Coordinator: CoordinatorSettings{WorkerTimeout: new(tc.timeout)}, Workers: []WorkerConfig{{Name: "worker", Socket: socket}}}
-			c := NewCoordinator(Paths{State: t.TempDir()}, config, testBinary)
+			c := newTestCoordinator(t, Paths{State: t.TempDir()}, config, testBinary)
 			defer c.Close()
 			candidates, busy, err := c.candidates(context.Background(), Record{Request: request(t, "true")})
 			if err != nil || busy || (len(candidates) == 1) != tc.available {

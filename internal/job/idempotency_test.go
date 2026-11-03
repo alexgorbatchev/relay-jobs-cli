@@ -19,7 +19,7 @@ func TestEmptyContainersRemainIdempotentAfterPersistence(t *testing.T) {
 	if _, err := w.Prepare(req); err != nil {
 		t.Fatal("identical empty containers rejected after JSON round trip:", err)
 	}
-	c := NewCoordinator(Paths{State: t.TempDir()}, Config{}, testBinary)
+	c := newTestCoordinator(t, Paths{State: t.TempDir()}, Config{}, testBinary)
 	defer c.Close()
 	if _, err := c.Submit(context.Background(), req); err != nil {
 		t.Fatal(err)

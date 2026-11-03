@@ -54,7 +54,7 @@ func TestDispatchFailureBoundaries(t *testing.T) {
 				config.Workers[0].Socket = "/missing/relay-jobs.sock"
 				req.Spec.Unavailable = "local"
 			}
-			c := NewCoordinator(Paths{State: t.TempDir()}, config, testBinary)
+			c := newTestCoordinator(t, Paths{State: t.TempDir()}, config, testBinary)
 			defer c.Close()
 			if mode == "local launch rejected" {
 				c.Local.Binary = "/nonexistent/relay-jobs"
@@ -92,7 +92,7 @@ func TestDispatchFailureBoundaries(t *testing.T) {
 }
 
 func TestSSHConfigurationNeverTriggersFallback(t *testing.T) {
-	c := NewCoordinator(Paths{State: t.TempDir()}, Config{Workers: []WorkerConfig{{Name: "bad", Host: "bad/alias", Socket: "/missing"}}}, testBinary)
+	c := newTestCoordinator(t, Paths{State: t.TempDir()}, Config{Workers: []WorkerConfig{{Name: "bad", Host: "bad/alias", Socket: "/missing"}}}, testBinary)
 	defer c.Close()
 	r := request(t, "true")
 	r.Spec.Unavailable = "local"
@@ -159,7 +159,7 @@ func TestStateAndLockFaults(t *testing.T) {
 	if err == nil {
 		t.Fatal("damaged active record ignored")
 	}
-	c := NewCoordinator(Paths{State: t.TempDir()}, Config{Workers: []WorkerConfig{{Name: "worker", Socket: endpoint(t, worker(t, 1).Handler())}}}, testBinary)
+	c := newTestCoordinator(t, Paths{State: t.TempDir()}, Config{Workers: []WorkerConfig{{Name: "worker", Socket: endpoint(t, worker(t, 1).Handler())}}}, testBinary)
 	defer c.Close()
 	r := Record{Request: request(t, "true"), State: "queued"}
 	c.Store.Put(r)
