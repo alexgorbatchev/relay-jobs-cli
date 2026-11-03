@@ -28,19 +28,28 @@ func TestServeCommands(t *testing.T) {
 			socket := filepath.Join(dir, "api")
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			done := make(chan int, 1)
+			type exit struct {
+				stderr string
+				code   int
+			}
+			done := make(chan exit, 1)
 			go func() {
 				_, stderr, code := execute(ctx, "--socket", socket, "--state", filepath.Join(dir, "state"), "--cache", filepath.Join(dir, "cache"), "--config", config, role, "serve")
-				if code != 0 {
-					t.Error(stderr)
-				}
-				done <- code
+				done <- exit{stderr, code}
 			}()
-			for i := 0; i < 1000; i++ {
+			// Serving starts after the rsync check, which runs an external process.
+			watchdog := time.After(30 * time.Second)
+			for {
 				if _, err = os.Stat(socket); err == nil {
 					break
 				}
-				time.Sleep(time.Millisecond)
+				select {
+				case result := <-done:
+					t.Fatalf("serve exited before listening: %d %s", result.code, result.stderr)
+				case <-watchdog:
+					t.Fatal("serve did not listen")
+				case <-time.After(time.Millisecond):
+				}
 			}
 			rpc := job.NewRPC(socket)
 			defer rpc.Close()
@@ -53,8 +62,8 @@ func TestServeCommands(t *testing.T) {
 				t.Fatal(err)
 			}
 			cancel()
-			if code := <-done; code != 0 {
-				t.Fatal(code)
+			if result := <-done; result.code != 0 {
+				t.Fatal(result.code, result.stderr)
 			}
 		})
 	}
