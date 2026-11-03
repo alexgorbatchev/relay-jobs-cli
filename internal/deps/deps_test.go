@@ -2,10 +2,12 @@ package deps
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 const (
@@ -104,5 +106,35 @@ func TestEnsure(t *testing.T) {
 	t.Setenv("AGENT", "yes")
 	if err := Ensure(context.Background(), strings.NewReader("y\n"), &out); err == nil || out.Len() != 0 {
 		t.Fatalf("agent mode prompted: %v %q", err, out.String())
+	}
+}
+
+func TestEnsureStopsWhenStartupIsCancelled(t *testing.T) {
+	fakeRsync(t, "")
+	dir := os.Getenv("PATH")
+	started := filepath.Join(dir, "started")
+	// The version check blocks, as a slow rsync does when serve receives SIGINT.
+	script := "#!/bin/sh\n: > '" + started + "'\nexec /bin/sleep 30\n"
+	if err := os.WriteFile(filepath.Join(dir, "rsync"), []byte(script), 0755); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		for {
+			if _, err := os.Stat(started); err == nil {
+				cancel()
+				return
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(5 * time.Millisecond):
+			}
+		}
+	}()
+	var out strings.Builder
+	if err := Ensure(ctx, strings.NewReader("y\n"), &out); !errors.Is(err, context.Canceled) || out.Len() != 0 {
+		t.Fatalf("cancelled startup: %v, prompt %q", err, out.String())
 	}
 }
