@@ -221,21 +221,17 @@ func TestSocketStartupFailures(t *testing.T) {
 	}
 	c := newTestCoordinator(t, Paths{State: filepath.Join(dir, "state")}, Config{}, testBinary)
 	defer c.Close()
-	runDir, err := os.MkdirTemp("", "rj-serve-coord-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(runDir)
+	runDir := socketTestDir(t)
 	done := make(chan error, 1)
 	go func() { done <- ServeCoordinator(ctx, filepath.Join(runDir, "api"), c) }()
 	for i := 0; i < 1000; i++ {
-		if _, err = os.Stat(filepath.Join(runDir, "api")); err == nil {
+		if _, err := os.Stat(filepath.Join(runDir, "api")); err == nil {
 			break
 		}
 		time.Sleep(time.Millisecond)
 	}
 	cancel()
-	if err = <-done; err != nil {
+	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
 }

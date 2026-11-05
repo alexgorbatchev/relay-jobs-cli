@@ -185,29 +185,55 @@ func TestOutputAndPathBoundaries(t *testing.T) {
 		t.Fatal("missing home changed unrelated path")
 	}
 }
-func socketServer(t *testing.T, h http.Handler) string {
+func socketTestDir(t *testing.T) string {
 	t.Helper()
-	dir, err := os.MkdirTemp("", "rj-cli-sock-")
+	// Unix socket addresses have a small kernel limit even when TMPDIR is deep.
+	// Ordinary temporary files still use the caller's TMPDIR.
+	dir, err := os.MkdirTemp("/tmp", "rj-cli-sock-")
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(dir); err != nil {
+			t.Errorf("remove socket fixture: %v", err)
+		}
+	})
+	return dir
+}
+
+func socketServer(t *testing.T, handler http.Handler) string {
+	t.Helper()
+	dir := socketTestDir(t)
 	socket := filepath.Join(dir, "api")
 	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan error, 1)
-	go func() { done <- job.Serve(ctx, socket, h) }()
-	for i := 0; i < 1000; i++ {
-		if _, err = os.Stat(socket); err == nil {
+	done := make(chan struct{})
+	var serveErr error
+	t.Cleanup(func() {
+		cancel()
+		<-done
+		if serveErr != nil {
+			t.Error(serveErr)
+		}
+	})
+	go func() {
+		defer close(done)
+		serveErr = job.Serve(ctx, socket, handler)
+	}()
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		select {
+		case <-done:
+			t.Fatalf("socket %s failed to start: %v", socket, serveErr)
+		default:
+		}
+		if _, err := os.Stat(socket); err == nil {
 			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("socket did not start")
 		}
 		time.Sleep(time.Millisecond)
 	}
-	t.Cleanup(func() {
-		cancel()
-		if err := <-done; err != nil {
-			t.Error(err)
-		}
-		os.RemoveAll(dir)
-	})
 	return socket
 }
 func TestCLIJobWorkflow(t *testing.T) {

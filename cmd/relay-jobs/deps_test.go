@@ -26,22 +26,18 @@ func TestServicesRequireUpstreamRsync(t *testing.T) {
 	t.Setenv("PATH", rsyncTools(t, `openrsync: protocol version 29\nrsync version 2.6.9 compatible\n`))
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	t.Setenv("AGENT", "1")
-	dir, err := os.MkdirTemp("", "rj-deps-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	config := filepath.Join(dir, "relay-jobs.toml")
-	if err = writeTOML(config, job.Config{Workers: []job.WorkerConfig{{Name: "test", Socket: filepath.Join(dir, "worker.sock")}}}); err != nil {
+	if err := writeTOML(config, job.Config{Workers: []job.WorkerConfig{{Name: "test", Socket: filepath.Join(dir, "worker.sock")}}}); err != nil {
 		t.Fatal(err)
 	}
-	socket := filepath.Join(dir, "api")
+	socket := filepath.Join(socketTestDir(t), "api")
 	for _, role := range []string{"worker", "coordinator"} {
 		_, stderr, code := execute(context.Background(), role, "serve", "--config", config, "--socket", socket, "--state", filepath.Join(dir, "state"), "--cache", filepath.Join(dir, "cache"))
 		if code != 1 || !strings.Contains(stderr, "rsync version 2.6.9 in $PATH is outdated") {
 			t.Errorf("%s: %d %q", role, code, stderr)
 		}
-		if _, err = os.Stat(socket); !os.IsNotExist(err) {
+		if _, err := os.Stat(socket); !os.IsNotExist(err) {
 			t.Fatalf("%s served before verifying rsync: %v", role, err)
 		}
 	}
@@ -52,12 +48,8 @@ func TestWorkerReservesVerifiedRsync(t *testing.T) {
 	t.Setenv("PATH", tools)
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	t.Setenv("AGENT", "1")
-	dir, err := os.MkdirTemp("", "rj-deps-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
-	socket := filepath.Join(dir, "api")
+	dir := t.TempDir()
+	socket := filepath.Join(socketTestDir(t), "api")
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan string, 1)
 	go func() {
@@ -71,7 +63,7 @@ func TestWorkerReservesVerifiedRsync(t *testing.T) {
 		}
 	}()
 	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(time.Millisecond) {
-		if _, err = os.Stat(socket); err == nil {
+		if _, err := os.Stat(socket); err == nil {
 			break
 		}
 	}
@@ -79,7 +71,7 @@ func TestWorkerReservesVerifiedRsync(t *testing.T) {
 	defer rpc.Close()
 	var rec job.Record
 	req := job.Request{ID: job.NewID(), Source: t.TempDir(), Spec: job.Spec{Command: []string{"true"}}}
-	if err = rpc.Call(ctx, "POST", "/jobs", req, &rec); err != nil {
+	if err := rpc.Call(ctx, "POST", "/jobs", req, &rec); err != nil {
 		t.Fatal(err)
 	}
 	if want := filepath.Join(tools, "rsync"); rec.SyncRsync != want {

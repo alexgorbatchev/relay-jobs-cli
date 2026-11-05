@@ -13,23 +13,15 @@ import (
 
 func configFixture(t *testing.T) (string, job.Config) {
 	t.Helper()
-	dir, err := os.MkdirTemp("", "rjcfg-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.RemoveAll(dir) })
-	return filepath.Join(dir, "relay-jobs.toml"), job.Config{Paths: job.PathConfig{State: filepath.Join(dir, "state"), Cache: filepath.Join(dir, "cache"), Socket: filepath.Join(dir, "api")}, Worker: job.WorkerSettings{Slots: new(2)}, Retention: job.RetentionSettings{Logs: new("1h"), Workspaces: new("0"), Interval: new("10ms")}}
+	dir := t.TempDir()
+	return filepath.Join(dir, "relay-jobs.toml"), job.Config{Paths: job.PathConfig{State: filepath.Join(dir, "state"), Cache: filepath.Join(dir, "cache"), Socket: filepath.Join(socketTestDir(t), "api")}, Worker: job.WorkerSettings{Slots: new(2)}, Retention: job.RetentionSettings{Logs: new("1h"), Workspaces: new("0"), Interval: new("10ms")}}
 }
 
 func TestWorkerDiscoversDefaultConfiguration(t *testing.T) {
 	for _, xdg := range []bool{false, true} {
 		t.Run(map[bool]string{false: "home", true: "xdg"}[xdg], func(t *testing.T) {
-			// Keep the default socket below Darwin's sockaddr_un path limit.
-			dir, err := os.MkdirTemp("/tmp", "rj-default-")
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Cleanup(func() { os.RemoveAll(dir) })
+			// The default socket lives beneath HOME, so its root must also be short.
+			dir := socketTestDir(t)
 			t.Setenv("HOME", dir)
 			configBase, stateBase := filepath.Join(dir, ".config"), filepath.Join(dir, ".local/state")
 			for _, name := range []string{"XDG_CONFIG_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME"} {
@@ -88,8 +80,8 @@ func TestTOMLWorkerAndFlagPrecedence(t *testing.T) {
 			args := []string{"worker", "serve", "--config", path}
 			wantSlots := 2
 			if override {
-				args = append(args, "--slots", "3", "--log-retention=0", "--socket", filepath.Join(filepath.Dir(path), "override.sock"))
-				cfg.Paths.Socket = filepath.Join(filepath.Dir(path), "override.sock")
+				args = append(args, "--slots", "3", "--log-retention=0", "--socket", filepath.Join(filepath.Dir(cfg.Paths.Socket), "override.sock"))
+				cfg.Paths.Socket = filepath.Join(filepath.Dir(cfg.Paths.Socket), "override.sock")
 				wantSlots = 3
 			}
 			store := job.Store{Dir: cfg.Paths.State}

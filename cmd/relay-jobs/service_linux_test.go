@@ -54,11 +54,8 @@ func TestServiceInstall(t *testing.T) {
 	if err := exec.Command("systemctl", "--user", "show-environment").Run(); err != nil {
 		t.Skip("requires user systemd")
 	}
-	dir, err := os.MkdirTemp("", "rj-install-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
+	socket := filepath.Join(socketTestDir(t), "api")
 	t.Setenv("XDG_DATA_HOME", filepath.Join(dir, "data $percent% space"))
 	tools := filepath.Join(dir, "tools $percent% \"quote\"")
 	os.MkdirAll(tools, 0700)
@@ -80,7 +77,6 @@ func TestServiceInstall(t *testing.T) {
 		os.Remove(unitPath)
 		exec.Command("systemctl", "--user", "daemon-reload").Run()
 	})
-	socket := filepath.Join(dir, "api")
 	state := filepath.Join(dir, "state")
 	store := job.Store{Dir: state}
 	old := job.Record{Request: job.Request{ID: job.NewID(), Source: t.TempDir(), Spec: job.Spec{Command: []string{"true"}}}, State: "succeeded", LogsCollected: true, Updated: time.Now().Add(-2 * time.Hour)}

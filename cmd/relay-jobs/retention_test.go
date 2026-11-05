@@ -22,12 +22,8 @@ func TestRetentionCLI(t *testing.T) {
 			}
 		}
 	}
-	dir, err := os.MkdirTemp("", "rjgc-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
-	state, socket := filepath.Join(dir, "state"), filepath.Join(dir, "api")
+	dir := t.TempDir()
+	state, socket := filepath.Join(dir, "state"), filepath.Join(socketTestDir(t), "api")
 	r := job.Record{Request: job.Request{ID: job.NewID(), Source: t.TempDir(), Spec: job.Spec{Command: []string{"true"}}}, State: "succeeded", LogsCollected: true, Updated: time.Now().Add(-2 * time.Hour)}
 	store := job.Store{Dir: state}
 	if err := job.WriteJSON(store.Path(r.ID, "record.json"), r); err != nil {

@@ -69,11 +69,7 @@ func TestRetentionAutomaticServices(t *testing.T) {
 				}
 				store = c.Store
 			}
-			dir, err := os.MkdirTemp("", "rjg-")
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer os.RemoveAll(dir)
+			dir := socketTestDir(t)
 			socket := filepath.Join(dir, "api")
 			ctx, cancel := context.WithCancel(context.Background())
 			done := make(chan error, 1)

@@ -119,18 +119,47 @@ func stopExecutions(t *testing.T, s Store) {
 		}
 	})
 }
-func endpoint(t *testing.T, handler http.Handler) string {
+func socketTestDir(t *testing.T) string {
 	t.Helper()
-	dir, err := os.MkdirTemp("", "rjt-")
+	// Unix socket addresses have a small kernel limit even when TMPDIR is deep.
+	// Keep only socket files here; other fixtures still use the caller's TMPDIR.
+	dir, err := os.MkdirTemp("/tmp", "rjt-")
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(dir); err != nil {
+			t.Errorf("remove socket fixture: %v", err)
+		}
+	})
+	return dir
+}
+
+func endpoint(t *testing.T, handler http.Handler) string {
+	t.Helper()
+	dir := socketTestDir(t)
 	socket := filepath.Join(dir, "api")
 	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan error, 1)
-	go func() { done <- Serve(ctx, socket, handler) }()
+	done := make(chan struct{})
+	var serveErr error
+	t.Cleanup(func() {
+		cancel()
+		<-done
+		if serveErr != nil {
+			t.Error(serveErr)
+		}
+	})
+	go func() {
+		defer close(done)
+		serveErr = Serve(ctx, socket, handler)
+	}()
 	deadline := time.Now().Add(3 * time.Second)
 	for {
+		select {
+		case <-done:
+			t.Fatalf("socket %s failed to start: %v", socket, serveErr)
+		default:
+		}
 		if _, err := os.Stat(socket); err == nil {
 			break
 		}
@@ -139,13 +168,6 @@ func endpoint(t *testing.T, handler http.Handler) string {
 		}
 		time.Sleep(time.Millisecond)
 	}
-	t.Cleanup(func() {
-		cancel()
-		if err := <-done; err != nil {
-			t.Error(err)
-		}
-		os.RemoveAll(dir)
-	})
 	return socket
 }
 func wait(t *testing.T, get func() (Record, error), states ...string) Record {
